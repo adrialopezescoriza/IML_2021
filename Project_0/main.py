@@ -19,4 +19,4 @@ results = np.vstack((test_id,test_predictions)).T
 header = np.array(["Id, y\n"])
 np.savetxt('results.csv', results, fmt=['%.0f','%.1f'], delimiter=',', header="Id, y", comments='')
 
-print("My balls are blue")
+print("My balls are red")
