@@ -16,5 +16,4 @@ test_id = test_data[1:,0]
 results = np.vstack((test_id,test_predictions)).T
 
 ## Print test outputs to csv files
-header = np.array(["Id, y\n"])
-np.savetxt('results.csv', results, fmt=['%.0f','%.1f'], delimiter=',', header="Id, y", comments='')
+np.savetxt('results.csv', results, fmt=['%.0f','%.1f'], delimiter=',', header="Id,y", comments='')
