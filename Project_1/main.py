@@ -29,7 +29,9 @@ for alpha in lambda_reg:
     for cv_set in data:
         ## Train with remaining data
         aux_data = data[:]
-        train_set = np.array(aux_data.pop(i))
+        aux_data.pop(i)
+        train_tuple = tuple(aux_data)
+        train_set = np.vstack(train_tuple)
         ridge_regressor.fit(train_set[:,1:],train_set[:,0:1])
 
         ## Evaluation
@@ -46,6 +48,7 @@ for alpha in lambda_reg:
 
 ## Print test outputs to csv files
 np.savetxt('Project_1/scores.csv', lambda_score, fmt=['%.3f'], delimiter='\n', comments='')
+print("Task completed")
 
 
 
