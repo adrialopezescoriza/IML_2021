@@ -1,5 +1,6 @@
 from sklearn.linear_model import Ridge
 import numpy as np
+import math
 
 def split_dataset(training_data):
     length = np.shape(training_data)[0]
@@ -32,7 +33,8 @@ for alpha in lambda_reg:
         ridge_regressor.fit(train_set[:,1:],train_set[:,0:1])
 
         ## Evaluation
-        score[0,i] = ridge_regressor.score(cv_set[:,1:],cv_set[:,0:1])
+        cv_predictions = ridge_regressor.predict(cv_set[:,1:])
+        score[0,i] = math.sqrt(np.mean((cv_set[:,0:1] - cv_predictions)**2))
         i += 1
     
     # Compute average score
