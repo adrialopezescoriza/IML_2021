@@ -47,7 +47,7 @@ for alpha in lambda_reg:
     j += 1
 
 ## Print test outputs to csv files
-np.savetxt('Project_1/scores.csv', lambda_score, fmt=['%.3f'], delimiter='\n', comments='')
+np.savetxt('Project_1/scores.csv', lambda_score, fmt=['%.15f'], delimiter='\n', comments='')
 print("Task completed")
 
 
