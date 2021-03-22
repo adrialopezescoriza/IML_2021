@@ -36,13 +36,15 @@ for i in range(np.shape(train_data)[0]):
         phi_train = np.vstack((phi_train,phi_xy))
 
 ## Linear regression
+reg = LinearRegression()
 X, y = phi_train[:,1:], phi_train[:,0:1]
-reg = LinearRegression().fit(X, y)
+reg.fit(X, y)
+
 print("Regression score = ", reg.score(X,y))
 
 # Coefficients
 w = reg.coef_
 
 ## Save parameters to csv file
-np.savetxt('Project_1b/results.csv', w, fmt='%.18f', delimiter='\n', comments='')
+np.savetxt('Project_1b/results.csv', w, fmt='%.15f', delimiter='\n', comments='')
 print("Task completed")
