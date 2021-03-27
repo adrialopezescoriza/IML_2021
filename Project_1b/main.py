@@ -1,5 +1,5 @@
 import numpy as np
-from sklearn.linear_model import LinearRegression, ElasticNetCV, RidgeCV, LassoCV
+from sklearn.linear_model import LinearRegression
 
 def feature_transformation(x):
     # Input in format  [x1,...,x5]
@@ -11,7 +11,7 @@ def feature_transformation(x):
     quad_x = x**2
     # Exponential 
     exp_x = np.exp(x)
-    # Coseine
+    # Cosine
     cos_x = np.cos(x)
     # Constant
     const_x = np.array([1])
@@ -36,18 +36,10 @@ for i in range(np.shape(train_data)[0]):
         phi_train = np.vstack((phi_train,phi_xy))
 
 ## Linear regression
-#reg = ElasticNetCV(cv=10,eps=1e-2,n_alphas=20,l1_ratio=0.5,max_iter=1000000)
-#reg = RidgeCV(cv=10,alphas=[0.1,1,5,10,20])
-#reg = LassoCV(cv=10,eps=1e-2,n_alphas=20,max_iter=1000000)
-reg = LinearRegression(fit_intercept=True)
-X, y = phi_train[:,1:], phi_train[:,0]
+reg = LinearRegression(fit_intercept=False)
+X,y = phi_train[:,1:], phi_train[:,0]
 reg.fit(X, y)
-
-print("Regression score = ", reg.score(X,y), np.sqrt(np.mean((y-reg.predict(X))**2)))
-try:
-    print("Alpha = ",reg.alpha_)
-except:
-    pass
+print("Regression score = ", reg.score(X,y), " RMSE = ",np.sqrt(np.mean((y-reg.predict(X))**2)))
 
 # Coefficients
 w = reg.coef_
