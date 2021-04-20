@@ -41,9 +41,8 @@ def imputation(data,type):
     
 
 # Function for dimensionality reduction
-def feature_extraction(X):
-    #feature_map_nystroem = Nystroem(gamma=.2, random_state=1,n_components=10)
-    feature_map = PCA(n_components=6)
+def feature_extraction(X,nc):
+    feature_map = PCA(n_components=nc)
     return feature_map.fit_transform(X)
 
 def time_series_conc(X):
@@ -60,10 +59,11 @@ def arrange_probs(probs_array):
         y_probs = np.hstack((y_probs,array[:,1:2]))
     return y_probs
 
-
+nc1 = 15
+nc2 = 15
+nc3 = 15
 # Load dateset
 X = np.genfromtxt('Project_2/train_features.csv', delimiter=',')[1:,1:]
-print(np.shape(X))
 y1 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,1:11].astype(int)
 y2 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,11].astype(int)
 y3 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,12:].astype(float)
@@ -78,44 +78,42 @@ X = imputation(X,type="mean")
 # Time series concatenation
 X_stacked = time_series_conc(X)
 
-# Feature extraction
-data_transformed = feature_extraction(X_stacked)
-
-########################
-######## Task 2 ########
-########################
-# PCA analysis
-#my_model = PCA(n_components=12)
-#my_model.fit_transform(X_stacked)
-#print(my_model.explained_variance_ratio_.cumsum())
-# Symptoms for Sepsis (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2
-clf_2 = svm.SVC(probability=True, C=100)
-#clf_2.fit(X_stacked[:,[1,2,6,10,31]], y2)
-#probs_predicted = clf_2.predict_proba(X_stacked[:,[2,5,6,10,31]])
-clf_2.fit(data_transformed, y2)
-probs_predicted = clf_2.predict_proba(data_transformed)
-y2_probs = probs_predicted[:,1:2]
-scr2 = roc_auc_score(y2, y2_probs)
-print("Score Task 2:",scr2)
-
 ########################
 ######## Task 1 ########
 ########################
-clf_1 = MultiOutputClassifier(KNeighborsClassifier(),n_jobs=10)
-clf_1.fit(data_transformed, y1)
-probs_predicted = clf_1.predict_proba(data_transformed)
+data_transformed_1 = feature_extraction(X_stacked,nc=nc1)
+clf_1 = MultiOutputClassifier(svm.SVC(probability=True, C=1),n_jobs=10)
+clf_1.fit(data_transformed_1, y1)
+probs_predicted = clf_1.predict_proba(data_transformed_1)
 y1_probs = arrange_probs(probs_predicted)
 scr1 = roc_auc_score(y1, y1_probs)
 print("Score Task 1:",scr1)
 
 ########################
+######## Task 2 ########
+########################
+# PCA analysis
+# Symptoms for Sepsis (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2
+clf_2 = svm.SVC(probability=True, C=1)
+#clf_2.fit(X_stacked[:,[1,2,6,10,31]], y2)
+#probs_predicted = clf_2.predict_proba(X_stacked[:,[2,5,6,10,31]])
+# Feature extraction
+data_transformed_2 = feature_extraction(X_stacked,nc=nc2)
+clf_2.fit(data_transformed_2, y2)
+probs_predicted = clf_2.predict_proba(data_transformed_2)
+y2_probs = probs_predicted[:,1:2]
+scr2 = roc_auc_score(y2, y2_probs)
+print("Score Task 2:",scr2)
+
+########################
 ######## Task 3 ########
 ########################
 # Symptoms (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2, ABPm: 21
-clf_3 = MultiOutputRegressor(SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1))
-clf_3.fit(data_transformed, y3)
+data_transformed_3 = feature_extraction(X_stacked,nc=nc3)
+clf_3 = MultiOutputRegressor(SVR(kernel='poly', C=1, gamma=0.1, epsilon=.1))
+clf_3.fit(data_transformed_3, y3)
 #clf_3.fit(X_stacked[:,[10,21,27,31]], y3)
-scr3 = r2_score(y3, clf_3.predict(data_transformed))
+scr3 = r2_score(y3, clf_3.predict(data_transformed_3))
 print("Score Task 3:",scr3)
 
 avg_scr = (scr1 + scr2 + scr3) / 3
@@ -131,15 +129,17 @@ patient_id = np.atleast_2d(np.genfromtxt('Project_2/test_features.csv', delimite
 # Preprocessing
 X_test = imputation(X_test,type="mean")
 X_test = time_series_conc(X_test)
-X_reduced = feature_extraction(X_test)
 
 # Predictions
-probs_predicted_1 = clf_1.predict_proba(X_reduced)
+X_reduced_1 = feature_extraction(X_test,nc=nc1)
+probs_predicted_1 = clf_1.predict_proba(X_reduced_1)
 y_pred1 = arrange_probs(probs_predicted_1)
 
 #y_pred2 = clf_2.predict_proba(X_test[:,[2,5,6,10,31]])[:,1:2]
-y_pred2 = clf_2.predict_proba(X_reduced)[:,1:2]
-y_pred3 = clf_3.predict(X_reduced)
+X_reduced_2 = feature_extraction(X_test,nc=nc2)
+y_pred2 = clf_2.predict_proba(X_reduced_2)[:,1:2]
+X_reduced_3 = feature_extraction(X_test,nc=nc3)
+y_pred3 = clf_3.predict(X_reduced_3)
 y_pred = np.hstack((patient_id,y_pred1,y_pred2,y_pred3))
 
 # Save results
