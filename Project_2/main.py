@@ -7,12 +7,17 @@ from sklearn.svm import SVR
 from sklearn.kernel_approximation import Nystroem
 from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import roc_auc_score, r2_score
 import pandas as pd
 
 # Function for imputation
-def imputation(data, type):
+def imputation(data,type):
+    
+    #imp = IterativeImputer(max_iter=3, random_state=0)
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean',fill_value=0)
+    X_imp = imp.fit_transform(data)
+    return X_imp
+    '''
     altered_data = np.empty([1,np.shape(data)[1]])
     for i in range(int(np.shape(data)[0]/12)): # 227940 entries = 18995 patients
         if type == 'mean':
@@ -26,21 +31,17 @@ def imputation(data, type):
             data[(12*i):(12*(i+1)),2:] = patient.interpolate(axis=0, limit=11, limit_direction='both')
             altered_data = data
 
-    df = DataFrame(altered_data)
+    df = DataFrame(altered_data) #including pid, Time, age
     coverage = df.count()/df.shape[0]*100
-    df = df.drop(columns=coverage[coverage < 30].index) # remove features with data for less than 30% of patients
+    df = df.drop(columns=coverage[coverage < 30].index) # remove features with data for less than 25% of patients
 
-    X = df.to_numpy()
-    imp = SimpleImputer(strategy='mean')
-    #imp = IterativeImputer(max_iter=1, random_state=0)
-    X = imp.fit_transform(X)
-
-    return X
+    return df.to_numpy()
+    '''
     
 
 # Function for dimensionality reduction
 def feature_extraction(X):
-    feature_map_nystroem = Nystroem(gamma=.2, random_state=1,n_components=12)
+    feature_map_nystroem = Nystroem(gamma=.2, random_state=1,n_components=10)
     return feature_map_nystroem.fit_transform(X)
 
 def time_series_conc(X):
@@ -60,16 +61,17 @@ def arrange_probs(probs_array):
 
 # Load dateset
 X = np.genfromtxt('Project_2/train_features.csv', delimiter=',')[1:,1:]
-y1 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,1:12].astype(int)
-y2 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,12].astype(int)
-y3 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,13:].astype(int)
+print(np.shape(X))
+y1 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,1:11].astype(int)
+y2 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,11].astype(int)
+y3 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,12:].astype(float)
 
 #######################
 #### Preprocessing ####
 #######################
 
 # Data Imputation
-X = imputation(X,type='mean')
+X = imputation(X,type="mean")
 
 # Time series concatenation
 X_stacked = time_series_conc(X)
@@ -90,19 +92,20 @@ print("Score Task 1:",scr1)
 ########################
 ######## Task 2 ########
 ########################
+# Symptoms for Sepsis (Heartrate: 31, Temp: 6, Age:1, RRate:10, EtCO2:2
 clf_2 = svm.SVC(probability=True, C=100)
-clf_2.fit(data_transformed, y2)
-probs_predicted = clf_2.predict_proba(data_transformed)
+clf_2.fit(X_stacked[:,[1,2,6,10,31]], y2)
+probs_predicted = clf_2.predict_proba(X_stacked[:,[1,2,6,10,31]])
+#clf_2.fit(data_transformed, y2)
+#probs_predicted = clf_2.predict_proba(data_transformed)
 y2_probs = probs_predicted[:,1:2]
-scr2 = 0.5
-#scr2 = roc_auc_score(y2, y2_probs)
+scr2 = roc_auc_score(y2, y2_probs)
 print("Score Task 2:",scr2)
 
 ########################
 ######## Task 3 ########
 ########################
 clf_3 = MultiOutputRegressor(SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1))
-#clf_3 = LinearRegression()
 clf_3.fit(data_transformed, y3)
 scr3 = r2_score(y3, clf_3.predict(data_transformed))
 print("Score Task 3:",scr3)
@@ -118,18 +121,17 @@ X_test = np.genfromtxt('Project_2/test_features.csv', delimiter=',')[1:,1:]
 patient_id = np.atleast_2d(np.genfromtxt('Project_2/test_features.csv', delimiter=',')[1::12,0:1])
 
 # Preprocessing
-X_test = imputation(X_test)
+X_test = imputation(X_test,type="mean")
 X_test = time_series_conc(X_test)
-X_test = feature_extraction(X_test)
+X_reduced = feature_extraction(X_test)
 
 # Predictions
-probs_predicted_1 = clf_1.predict_proba(X_test)
+probs_predicted_1 = clf_1.predict_proba(X_reduced)
 y_pred1 = arrange_probs(probs_predicted_1)
 
-y_pred2 = clf_2.predict_proba(X_test)[:,1:2]
-
-y_pred3 = clf_3.predict(X_test)
-
+y_pred2 = clf_2.predict_proba(X_test[:,[1,2,6,10,31]])[:,1:2]
+#y_pred2 = clf_2.predict_proba(X_reduced)[:,1:2]
+y_pred3 = clf_3.predict(X_reduced)
 y_pred = np.hstack((patient_id,y_pred1,y_pred2,y_pred3))
 
 # Save results
