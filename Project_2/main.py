@@ -8,6 +8,7 @@ from sklearn.kernel_approximation import Nystroem
 from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import roc_auc_score, r2_score
+from sklearn.decomposition import PCA
 import pandas as pd
 
 # Function for imputation
@@ -41,8 +42,9 @@ def imputation(data,type):
 
 # Function for dimensionality reduction
 def feature_extraction(X):
-    feature_map_nystroem = Nystroem(gamma=.2, random_state=1,n_components=10)
-    return feature_map_nystroem.fit_transform(X)
+    #feature_map_nystroem = Nystroem(gamma=.2, random_state=1,n_components=10)
+    feature_map = PCA(n_components=6)
+    return feature_map.fit_transform(X)
 
 def time_series_conc(X):
     patients_size = int(X.shape[0]/12)
@@ -80,6 +82,23 @@ X_stacked = time_series_conc(X)
 data_transformed = feature_extraction(X_stacked)
 
 ########################
+######## Task 2 ########
+########################
+# PCA analysis
+#my_model = PCA(n_components=12)
+#my_model.fit_transform(X_stacked)
+#print(my_model.explained_variance_ratio_.cumsum())
+# Symptoms for Sepsis (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2
+clf_2 = svm.SVC(probability=True, C=100)
+#clf_2.fit(X_stacked[:,[1,2,6,10,31]], y2)
+#probs_predicted = clf_2.predict_proba(X_stacked[:,[2,5,6,10,31]])
+clf_2.fit(data_transformed, y2)
+probs_predicted = clf_2.predict_proba(data_transformed)
+y2_probs = probs_predicted[:,1:2]
+scr2 = roc_auc_score(y2, y2_probs)
+print("Score Task 2:",scr2)
+
+########################
 ######## Task 1 ########
 ########################
 clf_1 = MultiOutputClassifier(KNeighborsClassifier(),n_jobs=10)
@@ -90,23 +109,12 @@ scr1 = roc_auc_score(y1, y1_probs)
 print("Score Task 1:",scr1)
 
 ########################
-######## Task 2 ########
-########################
-# Symptoms for Sepsis (Heartrate: 31, Temp: 6, Age:1, RRate:10, EtCO2:2
-clf_2 = svm.SVC(probability=True, C=100)
-clf_2.fit(X_stacked[:,[1,2,6,10,31]], y2)
-probs_predicted = clf_2.predict_proba(X_stacked[:,[1,2,6,10,31]])
-#clf_2.fit(data_transformed, y2)
-#probs_predicted = clf_2.predict_proba(data_transformed)
-y2_probs = probs_predicted[:,1:2]
-scr2 = roc_auc_score(y2, y2_probs)
-print("Score Task 2:",scr2)
-
-########################
 ######## Task 3 ########
 ########################
+# Symptoms (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2, ABPm: 21
 clf_3 = MultiOutputRegressor(SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1))
 clf_3.fit(data_transformed, y3)
+#clf_3.fit(X_stacked[:,[10,21,27,31]], y3)
 scr3 = r2_score(y3, clf_3.predict(data_transformed))
 print("Score Task 3:",scr3)
 
@@ -129,8 +137,8 @@ X_reduced = feature_extraction(X_test)
 probs_predicted_1 = clf_1.predict_proba(X_reduced)
 y_pred1 = arrange_probs(probs_predicted_1)
 
-y_pred2 = clf_2.predict_proba(X_test[:,[1,2,6,10,31]])[:,1:2]
-#y_pred2 = clf_2.predict_proba(X_reduced)[:,1:2]
+#y_pred2 = clf_2.predict_proba(X_test[:,[2,5,6,10,31]])[:,1:2]
+y_pred2 = clf_2.predict_proba(X_reduced)[:,1:2]
 y_pred3 = clf_3.predict(X_reduced)
 y_pred = np.hstack((patient_id,y_pred1,y_pred2,y_pred3))
 
