@@ -1,12 +1,11 @@
 import numpy as np
 from pandas import DataFrame
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer, SimpleImputer
-from sklearn import datasets, svm
+from sklearn.impute import SimpleImputer
+from sklearn import svm
 from sklearn.svm import SVR
-from sklearn.kernel_approximation import Nystroem
+from sklearn.linear_model import RidgeCV
 from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.metrics import roc_auc_score, r2_score
 from sklearn.decomposition import PCA
 import pandas as pd
@@ -79,10 +78,23 @@ X = imputation(X,type="mean")
 X_stacked = time_series_conc(X)
 
 ########################
+######## Task 3 ########
+########################
+# Symptoms (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2, ABPm: 21
+data_transformed_3 = feature_extraction(X_stacked,nc=nc3)
+#clf_3 = MultiOutputRegressor(KNeighborsRegressor(n_neighbors=5))
+clf_3 = MultiOutputRegressor(SVR(kernel='rbf', C=10, gamma=0.1, epsilon=.1))
+clf_3.fit(data_transformed_3, y3)
+print("HEY")
+#clf_3.fit(X_stacked[:,[10,21,27,31]], y3)
+scr3 = r2_score(y3, clf_3.predict(data_transformed_3))
+print("Score Task 3:",scr3)
+
+########################
 ######## Task 1 ########
 ########################
 data_transformed_1 = feature_extraction(X_stacked,nc=nc1)
-clf_1 = MultiOutputClassifier(svm.SVC(probability=True, C=1),n_jobs=10)
+clf_1 = MultiOutputClassifier(svm.SVC(probability=True, C=20),n_jobs=10)
 clf_1.fit(data_transformed_1, y1)
 probs_predicted = clf_1.predict_proba(data_transformed_1)
 y1_probs = arrange_probs(probs_predicted)
@@ -94,7 +106,7 @@ print("Score Task 1:",scr1)
 ########################
 # PCA analysis
 # Symptoms for Sepsis (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2
-clf_2 = svm.SVC(probability=True, C=1)
+clf_2 = svm.SVC(probability=True, C=50)
 #clf_2.fit(X_stacked[:,[1,2,6,10,31]], y2)
 #probs_predicted = clf_2.predict_proba(X_stacked[:,[2,5,6,10,31]])
 # Feature extraction
@@ -104,17 +116,6 @@ probs_predicted = clf_2.predict_proba(data_transformed_2)
 y2_probs = probs_predicted[:,1:2]
 scr2 = roc_auc_score(y2, y2_probs)
 print("Score Task 2:",scr2)
-
-########################
-######## Task 3 ########
-########################
-# Symptoms (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2, ABPm: 21
-data_transformed_3 = feature_extraction(X_stacked,nc=nc3)
-clf_3 = MultiOutputRegressor(SVR(kernel='poly', C=1, gamma=0.1, epsilon=.1))
-clf_3.fit(data_transformed_3, y3)
-#clf_3.fit(X_stacked[:,[10,21,27,31]], y3)
-scr3 = r2_score(y3, clf_3.predict(data_transformed_3))
-print("Score Task 3:",scr3)
 
 avg_scr = (scr1 + scr2 + scr3) / 3
 print("Average score: ", avg_scr)
