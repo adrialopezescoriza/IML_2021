@@ -6,7 +6,7 @@ import torch.optim as optim
 import sklearn.metrics as metrics
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, RidgeCV, RidgeClassifierCV, LogisticRegression
-from sklearn.multioutput import MultiOutputClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.decomposition import PCA
 from sklearn import svm
 import matplotlib.pyplot as plt
@@ -185,10 +185,10 @@ def subtask2(X_train, y_train, X_test):
     #feature_map = PCA(n_components=12)
     #feature_map.fit_transform(X_train.values)
     #model = svm.SVC(probability=True, C=0.1)
-    train_labels = ['Age','EtCO2','Temp','RRate','Heartrate','ABPs']
-    model = LogisticRegression(random_state=0)
-    model.fit(X_train['Age','EtCO2','Temp','RRate','Heartrate','ABPs'].values,y_train['LABEL_Sepsis'].values)
-    y_pred = model.predict_proba(X_test['Age','EtCO2','Temp','RRate','Heartrate','ABPs'].values)[:,1:2]
+    #model = LogisticRegression(random_state=0)
+    model = MLPClassifier(solver='lbfgs', alpha=1e-3,hidden_layer_sizes=(10, 3), random_state=1, max_iter=2000)
+    model.fit(X_train.values,y_train['LABEL_Sepsis'].values)
+    y_pred = model.predict_proba(X_test.values)[:,1:2]
     return pd.DataFrame(y_pred, columns=['LABEL_Sepsis'], index=X_test.index)
 
 def subtask3(X_train, y_train, X_test):
@@ -213,9 +213,14 @@ def make_submission(train_features, y_train, val_features, y_val, test_features)
     X_val, _ = standardize_data(X_val, X_test)
     
     labels_tests_test = subtask1(X_train, y_train, X_test)
-    label_sepsis_test = subtask2(X_train, y_train, X_test)
-
     labels_tests_val = subtask1(X_train, y_train, X_val)
+
+    X_train, X_test = impute_zero(train_features, test_features)
+    X_train, X_test = standardize_data(X_train, X_test)
+    X_val, _ = impute_zero(val_features, test_features)
+    X_val, _ = standardize_data(X_val, X_test)
+
+    label_sepsis_test = subtask2(X_train, y_train, X_test)
     label_sepsis_val = subtask2(X_train, y_train, X_val)
 
     X_train, X_test = impute_mean(train_features, test_features)
