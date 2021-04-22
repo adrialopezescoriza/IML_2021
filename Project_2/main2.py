@@ -5,6 +5,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from sklearn import svm
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
 
 from score_submission import get_score
 
@@ -66,7 +67,7 @@ def task3_model(X,y):
 print("Loading Datasets...")
 X = np.genfromtxt('Project_2/train_features.csv', delimiter=',')[1:,1:]
 y = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,1:]
-pat_id = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1::12,0:1].astype(int)
+pat_id = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,0:1].astype(int)
 
 ## Split in training and validation
 print("Spliting Datasets...")
@@ -94,13 +95,14 @@ X3_val,y3_val = task3_model(X_val,y_val)
 ## Machine learning models
 model1 = MultiOutputClassifier(svm.SVC(probability=True, C=10),n_jobs=10)
 model2 = svm.SVC(probability=True, C=10)
-model3 = MultiOutputRegressor(svm.SVR(kernel='poly',degree=3, C=10, gamma='scale', epsilon=.1))
+#model3 = MultiOutputRegressor(svm.SVR(kernel='poly',degree=3, C=10, gamma='scale', epsilon=.1),n_jobs=4)
+model3 = MultiOutputRegressor(LinearRegression(),n_jobs=4)
 
 ## Fit models
 print("Fiting to model 1...")
 model1.fit(X1_train,y1_train)
 print("Fiting to model 2...")
-model2.fit(X2_train,y2_train)
+model2.fit(X2_train,y2_train[:,0])
 print("Fiting to model 3...")
 model3.fit(X3_train,y3_train)
 
@@ -112,8 +114,8 @@ y3_pred = model3.predict(X1_val)
 
 ## Validation score
 print("Scores:")
-y_pred_val = np.hstack((pat_id,y1_pred,y2_pred,y3_pred))
-y_true_val = np.hstack((pat_id,y1_val,y2_val,y3_val))
+y_pred_val = np.hstack((pat_id_val,y1_pred,y2_pred,y3_pred))
+y_true_val = np.hstack((pat_id_val,y1_val,y2_val,y3_val))
 df_pred_val = pd.DataFrame(y_pred_val, columns = col_labels)
 df_true_val = pd.DataFrame(y_true_val, columns = col_labels)
 score = get_score(df_true_val, df_pred_val)

@@ -152,7 +152,7 @@ def subtask3(X_train, y_train, X_test):
     for vital in VITALS:
         y = y_train[vital]
 
-        # Create linear regressior and train it
+        # Create linear regressor and train it
         model  = LinearRegression().fit(X_train, y)
         # model = LassoCV(random_state=42).fit(X_train, y)
 
