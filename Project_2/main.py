@@ -1,213 +1,109 @@
-import numpy as np
-from pandas import DataFrame
-from sklearn.impute import SimpleImputer
-from sklearn import svm
-from sklearn.svm import SVR
-from sklearn.linear_model import RidgeCV
-from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
-from sklearn.neighbors import KNeighborsRegressor
-from sklearn.metrics import roc_auc_score, r2_score
-from sklearn.decomposition import PCA
 import pandas as pd
-
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import RidgeCV, LogisticRegression
+from sklearn.neural_network import MLPClassifier
 from score_submission import get_score
 
-# Function for imputation
-def imputation(X,type):
-    patients_size = int(X.shape[0]/12)
+# labels
+VITALS = ['LABEL_RRate', 'LABEL_ABPm', 'LABEL_SpO2', 'LABEL_Heartrate']
+TESTS = ['LABEL_BaseExcess', 'LABEL_Fibrinogen', 'LABEL_AST', 'LABEL_Alkalinephos', 'LABEL_Bilirubin_total',
+         'LABEL_Lactate', 'LABEL_TroponinI', 'LABEL_SaO2',
+         'LABEL_Bilirubin_direct', 'LABEL_EtCO2']
+
+# Data imputation
+def impute_mean(train_features, test_features):
+    X_train = (train_features.groupby('pid').mean()).fillna(train_features.mean()).drop('Time', axis=1).sort_values(by='pid')
+    X_test = (test_features.groupby('pid').mean()).fillna(test_features.mean()).drop('Time', axis=1).sort_values(by='pid')
+    return X_train, X_test
+
+def impute_median(train_features, test_features):
+    X_train = (train_features.groupby('pid').mean()).fillna(train_features.median()).drop('Time', axis=1).sort_values(by='pid')
+    X_test = (test_features.groupby('pid').mean()).fillna(test_features.median()).drop('Time', axis=1).sort_values(by='pid')
+    return X_train, X_test
+
+def impute_zero(train_features, test_features):
+    X_train = (train_features.groupby('pid').mean()).fillna(0.0).drop('Time', axis=1).sort_values(by='pid')
+    X_test = (test_features.groupby('pid').mean()).fillna(0.0).drop('Time', axis=1).sort_values(by='pid')
+    return X_train, X_test
+
+def standardize_data(X_train, X_test):
+    # Standardize data
+    scaler = StandardScaler()
+    X_train = pd.DataFrame(scaler.fit_transform(X_train), index=X_train.index)
+    X_test = pd.DataFrame(scaler.transform(X_test), index=X_test.index)
     
-    X_stacked = np.zeros((patients_size,X.shape[1]))
-    for i in range(patients_size):
-        # Mean evolution of the symptoms
-        X_stacked[i,:] = np.mean(X[i*12:(i+1)*12,:],axis=0)
+    return X_train, X_test
+
+def task1(X_train, y_train, X_test):
+    y_pred = []
+    for test in TESTS:
+        y = y_train[test]
+        # Create linear regressor and train it
+        model = LogisticRegression(random_state=0).fit(X_train.values, y.values)
+        # Make predicitons 
+        y_pred.append(model.predict_proba(X_test.values)[:,1])
+    return pd.DataFrame(np.transpose(y_pred), columns=TESTS, index=X_test.index)
     
-    #imp = IterativeImputer(max_iter=3, random_state=0)
-    imp = SimpleImputer(missing_values=np.nan, strategy='mean',fill_value=0)
-    X_imp = imp.fit_transform(X)
-    return X_imp
-    '''
-    altered_data = np.empty([1,np.shape(data)[1]])
-    for i in range(int(np.shape(data)[0]/12)): # 227940 entries = 18995 patients
-        if type == 'mean':
-            patient = np.nanmean(data[(12*i):(12*(i+1)),], axis=0)
-            if i == 0:
-                altered_data = patient
-            else:
-                altered_data = np.vstack([altered_data, patient])
-        elif type == 'interpolate':
-            patient = DataFrame(data[(12*i):(12*(i+1)),2:])
-            data[(12*i):(12*(i+1)),2:] = patient.interpolate(axis=0, limit=11, limit_direction='both')
-            altered_data = data
 
-    df = DataFrame(altered_data) #including pid, Time, age
-    coverage = df.count()/df.shape[0]*100
-    df = df.drop(columns=coverage[coverage < 30].index) # remove features with data for less than 25% of patients
+def task2(X_train, y_train, X_test):
+    model = MLPClassifier(solver='lbfgs', alpha=1e-3,hidden_layer_sizes=(5, 10), random_state=1, max_iter=20000)
+    model.fit(X_train.values,y_train['LABEL_Sepsis'].values)
+    y_pred = model.predict_proba(X_test.values)[:,1:2]
+    return pd.DataFrame(y_pred, columns=['LABEL_Sepsis'], index=X_test.index)
 
-    return df.to_numpy()
-    '''
+def task3(X_train, y_train, X_test):
+    y_pred = []
+    for vital in VITALS:
+        y = y_train[vital]
+        # Create linear regressor and train it
+        model  = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1]).fit(X_train, y)
+        # Make predicitons 
+        y_pred.append(model.predict(X_test))
+    return pd.DataFrame(np.transpose(y_pred), columns=VITALS, index=X_test.index)
 
-# Function for dimensionality reduction
-def feature_extraction(X,nc):
-    feature_map = PCA(n_components=nc)
-    return feature_map.fit_transform(X)
+# Loading data
+train_features = pd.read_csv('Project_2/train_features.csv')
+val_features = pd.read_csv('Project_2/val_features.csv')
+test_features = pd.read_csv('Project_2/test_features.csv')
+train_labels = pd.read_csv('Project_2/train_labels.csv', index_col = 'pid').sort_values(by='pid')
+val_labels = pd.read_csv('Project_2/val_labels.csv', index_col = 'pid').sort_values(by='pid')
 
-def time_series_conc(X):
-    patients_size = int(X.shape[0]/12)
-    
-    X_stacked = np.zeros((patients_size,X.shape[1]))
-    for i in range(patients_size):
-        # Mean evolution of the symptoms
-        X_stacked[i,:] = np.mean(X[i*12:(i+1)*12,:],axis=0)
-    
-    return X_stacked
+y_train = train_labels
+y_val = val_labels
 
-def task1_model(X,nc):
-    return feature_extraction(time_series_conc(X),nc)
+# patient IDs
+pids = train_features['pid'].drop_duplicates().sort_values().reset_index(drop=True)
 
-def task2_model(X,nc):
-    # Symptoms for Sepsis (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2)
-    patients_size = int(X.shape[0]/12)
-    X_stacked = np.zeros((patients_size,X.shape[1]))
-    for i in range(patients_size):
-        # Mean evolution of the symptoms
-        X_stacked[i,:] = np.mean(X[i*12:(i+1)*12-1,:]-X[i*12+1:(i+1)*12],axis=0)
-    X_stacked = feature_extraction(X_stacked,nc)
-    return X_stacked
+X_train, X_test = impute_zero(train_features, test_features)
+X_train, X_test = standardize_data(X_train, X_test)
+X_val, _ = impute_zero(val_features, test_features)
+X_val, _ = standardize_data(X_val, X_test)
 
-def task3_model(X,nc):
-    # Symptoms (Heartrate: 31, Temp: 6, Lactate:5, Age:1, RRate:10, EtCO2:2, ABPm: 21
-    return feature_extraction(time_series_conc(X),nc)
+labels_tests_test = task1(X_train, y_train, X_test)
+labels_tests_val = task1(X_train, y_train, X_val)
 
-def arrange_probs(probs_array):
-    y_probs = np.zeros((len(probs_array[0]),0))
-    for array in probs_array:
-        # Return probability of class 1
-        y_probs = np.hstack((y_probs,array[:,1:2]))
-    return y_probs
+X_train, X_test = impute_zero(train_features, test_features)
+X_train, X_test = standardize_data(X_train, X_test)
+X_val, _ = impute_zero(val_features, test_features)
+X_val, _ = standardize_data(X_val, X_test)
 
-nc1 = 12
-nc2 = 12
-nc3 = 12
-# Load dateset
-X = np.genfromtxt('Project_2/train_features.csv', delimiter=',')[1:,1:]
-y1 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,1:11].astype(int)
-y2 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,11:12].astype(int)
-y3 = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,12:].astype(float)
-pat_id = np.genfromtxt('Project_2/train_labels.csv', delimiter=',')[1:,0:1].astype(int)
+label_sepsis_test = task2(X_train, y_train, X_test)
+label_sepsis_val = task2(X_train, y_train, X_val)
 
-#######################
-#### Preprocessing ####
-#######################
+X_train, X_test = impute_mean(train_features, test_features)
+X_train, X_test = standardize_data(X_train, X_test)
+X_val, _ = impute_mean(val_features, test_features)
+X_val, _ = standardize_data(X_val, X_test)
 
-# Data Imputation
-X = imputation(X,type="mean")
+labels_vitals_test = task3(X_train, y_train, X_test)
+labels_vitals_val = task3(X_train, y_train, X_val)
 
-# Split Dataset
-train_size = (int(len(X)*0.8) - int(len(X)*0.8)%12) 
-label_size = int(train_size/12)
-X_train = X[:train_size,:]
-y1_train = y1[:label_size,:]
-y2_train = y2[:label_size,:]
-y3_train = y3[:label_size,:]
-pat_id_train = pat_id[:label_size,:]
+result_val = pd.concat([labels_tests_val, label_sepsis_val, labels_vitals_val], axis=1)
+result_test = pd.concat([labels_tests_test, label_sepsis_test, labels_vitals_test], axis=1)
 
-X_val = X[train_size:,:]
-y1_val = y1[label_size:,:]
-y2_val = y2[label_size:,:]
-y3_val = y3[label_size:,:]
-pat_id_val = pat_id[label_size:,:]
+print("Avg score for validation set:", get_score(y_val,result_val))
 
-# Preprocess Dataset
-X1_train = task1_model(X_train,nc1)
-X2_train = task2_model(X_train,nc2)
-X3_train = task3_model(X_train,nc3)
+result_val.to_csv('Project_2/prediction_val.csv', float_format='%.3f')
+result_test.to_csv('Project_2/prediction.zip', float_format='%.3f', compression='zip')
 
-X1_val = task1_model(X_val,nc1)
-X2_val = task2_model(X_val,nc2)
-X3_val = task3_model(X_val,nc3)
-
-# Shuffle dataset
-'''
-rand_perm = np.random.permutation(len(X1_train))
-X1_train = X1_train[rand_perm,:]
-X2_train = X2_train[rand_perm,:]
-X3_train = X3_train[rand_perm,:]
-
-y1 = y1_train[rand_perm,:]
-y2 = y2_train[rand_perm,:]
-y3 = y3_train[rand_perm,:]
-'''
-########################
-######## Task 1 ########
-########################
-clf_1 = MultiOutputClassifier(svm.SVC(probability=True, C=10),n_jobs=10)
-clf_1.fit(X1_train, y1_train)
-
-y_predict_val_1 = arrange_probs(clf_1.predict_proba(X1_val))
-scr1 = roc_auc_score(y1_val, y_predict_val_1)
-print("Score Task 1:",scr1)
-
-########################
-######## Task 2 ########
-########################
-clf_2 = svm.SVC(probability=True, C=10)
-clf_2.fit(X2_train, y2_train[:,0])
-
-y_predict_val_2 = clf_2.predict_proba(X2_val)[:,1:2]
-scr2 = roc_auc_score(y2_val[:,0], y_predict_val_2[:,0])
-print("Score Task 2:",scr2)
-
-########################
-######## Task 3 ########
-########################
-clf_3 = MultiOutputRegressor(SVR(kernel='poly',degree=3, C=10, gamma='scale', epsilon=.1))
-clf_3.fit(X3_train, y3_train)
-
-y_predict_val_3 = clf_3.predict(X3_val)
-scr3 = np.mean([0.5 + 0.5 * np.maximum(0, r2_score(y3_val, y_predict_val_3))])
-print("Score Task 3:",scr3)
-
-## Score of all tasks in validation set
-avg_scr = (scr1 + scr2 + scr3) / 3
-print("Average score: ", avg_scr)
-
-y_pred_val = np.hstack((pat_id_val,y_predict_val_1,y_predict_val_2,y_predict_val_3))
-y_true_val = np.hstack((pat_id_val,y1_val,y2_val,y3_val))
-df_pred_val = pd.DataFrame(y_pred_val, columns = ['pid','LABEL_BaseExcess','LABEL_Fibrinogen','LABEL_AST','LABEL_Alkalinephos','LABEL_Bilirubin_total','LABEL_Lactate','LABEL_TroponinI','LABEL_SaO2','LABEL_Bilirubin_direct','LABEL_EtCO2','LABEL_Sepsis','LABEL_RRate','LABEL_ABPm','LABEL_SpO2','LABEL_Heartrate'])
-df_true_val = pd.DataFrame(y_true_val, columns = ['pid','LABEL_BaseExcess','LABEL_Fibrinogen','LABEL_AST','LABEL_Alkalinephos','LABEL_Bilirubin_total','LABEL_Lactate','LABEL_TroponinI','LABEL_SaO2','LABEL_Bilirubin_direct','LABEL_EtCO2','LABEL_Sepsis','LABEL_RRate','LABEL_ABPm','LABEL_SpO2','LABEL_Heartrate'])
-
-# Score from score_submission.py
-print(get_score(df_true_val, df_pred_val))
-df_pred_val.to_csv('Project_2/prediction_val.csv', index=False, float_format='%.3f')
-df_true_val.to_csv('Project_2/labels_val.csv', index=False, float_format='%.3f')
-
-
-'''
-########################
-## Results Generation ##
-########################
-X_test = np.genfromtxt('Project_2/test_features.csv', delimiter=',')[1:,1:]
-patient_id = np.atleast_2d(np.genfromtxt('Project_2/test_features.csv', delimiter=',')[1::12,0:1])
-
-# Preprocessing
-X_test = imputation(X_test,type="mean")
-X_test = time_series_conc(X_test)
-
-# Predictions
-X_reduced_1 = feature_extraction(X_test,nc=nc1)
-probs_predicted_1 = clf_1.predict_proba(X_reduced_1)
-y_pred1 = arrange_probs(probs_predicted_1)
-
-#y_pred2 = clf_2.predict_proba(X_test[:,[2,5,6,10,31]])[:,1:2]
-X_reduced_2 = feature_extraction(X_test,nc=nc2)
-y_pred2 = clf_2.predict_proba(X_reduced_2)[:,1:2]
-X_reduced_3 = feature_extraction(X_test,nc=nc3)
-y_pred3 = clf_3.predict(X_reduced_3)
-y_pred = np.hstack((patient_id,y_pred1,y_pred2,y_pred3))
-
-# Save results
-df = pd.DataFrame(y_pred, columns = ['pid','LABEL_BaseExcess','LABEL_Fibrinogen','LABEL_AST','LABEL_Alkalinephos','LABEL_Bilirubin_total','LABEL_Lactate','LABEL_TroponinI','LABEL_SaO2','LABEL_Bilirubin_direct','LABEL_EtCO2','LABEL_Sepsis','LABEL_RRate','LABEL_ABPm','LABEL_SpO2','LABEL_Heartrate'])
-df.to_csv('Project_2/prediction.zip', index=False, float_format='%.3f', compression='zip')
-df.to_csv('Project_2/prediction.csv', index=False, float_format='%.3f')
-print("Task completed")
-'''
