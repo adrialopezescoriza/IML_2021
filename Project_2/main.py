@@ -13,11 +13,17 @@ import pandas as pd
 from score_submission import get_score
 
 # Function for imputation
-def imputation(data,type):
+def imputation(X,type):
+    patients_size = int(X.shape[0]/12)
+    
+    X_stacked = np.zeros((patients_size,X.shape[1]))
+    for i in range(patients_size):
+        # Mean evolution of the symptoms
+        X_stacked[i,:] = np.mean(X[i*12:(i+1)*12,:],axis=0)
     
     #imp = IterativeImputer(max_iter=3, random_state=0)
     imp = SimpleImputer(missing_values=np.nan, strategy='mean',fill_value=0)
-    X_imp = imp.fit_transform(data)
+    X_imp = imp.fit_transform(X)
     return X_imp
     '''
     altered_data = np.empty([1,np.shape(data)[1]])
@@ -39,7 +45,6 @@ def imputation(data,type):
 
     return df.to_numpy()
     '''
-    
 
 # Function for dimensionality reduction
 def feature_extraction(X,nc):
@@ -53,7 +58,6 @@ def time_series_conc(X):
     for i in range(patients_size):
         # Mean evolution of the symptoms
         X_stacked[i,:] = np.mean(X[i*12:(i+1)*12,:],axis=0)
-    
     
     return X_stacked
 

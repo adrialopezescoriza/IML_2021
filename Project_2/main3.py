@@ -9,6 +9,8 @@ from sklearn.linear_model import LinearRegression, LassoCV
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
+from score_submission import get_score
+
 # parameters:
 l1_out = 100 # output size of first linear layer
 l2_out = 120 # output size of second linear layer
@@ -22,11 +24,15 @@ TESTS = ['LABEL_BaseExcess', 'LABEL_Fibrinogen', 'LABEL_AST', 'LABEL_Alkalinepho
          'LABEL_Bilirubin_direct', 'LABEL_EtCO2']
          
 # Load data
+
 train_features = pd.read_csv('Project_2/train_features.csv')
+val_features = pd.read_csv('Project_2/val_features.csv')
 test_features = pd.read_csv('Project_2/test_features.csv')
 train_labels = pd.read_csv('Project_2/train_labels.csv', index_col = 'pid').sort_values(by='pid')
+val_labels = pd.read_csv('Project_2/val_labels.csv', index_col = 'pid').sort_values(by='pid')
 
 y_train = train_labels
+y_val = val_labels
 
 # patient IDs
 pids = train_features['pid'].drop_duplicates().sort_values().reset_index(drop=True)
@@ -161,20 +167,31 @@ def subtask3(X_train, y_train, X_test):
 
     return pd.DataFrame(np.transpose(y_pred), columns=VITALS, index=X_test.index)
 
-def make_submission(train_features, y_train, test_features):
+def make_submission(train_features, y_train, val_features, y_val, test_features):
     X_train, X_test = impute_zero(train_features, test_features)
     X_train, X_test = standardize_data(X_train, X_test)
+    X_val, _ = impute_zero(val_features, test_features)
+    X_val, _ = standardize_data(X_val, X_test)
     
-    labels_tests = subtask1(X_train, y_train, X_test)
-    label_sepsis = subtask2(X_train, y_train, X_test)
+    labels_tests_test = subtask1(X_train, y_train, X_test)
+    label_sepsis_test = subtask2(X_train, y_train, X_test)
+
+    labels_tests_val = subtask1(X_train, y_train, X_val)
+    label_sepsis_val = subtask2(X_train, y_train, X_val)
 
     X_train, X_test = impute_mean(train_features, test_features)
     X_train, X_test = standardize_data(X_train, X_test)
+    X_val, _ = impute_mean(val_features, test_features)
+    X_val, _ = standardize_data(X_val, X_test)
 
     labels_vitals = subtask3(X_train, y_train, X_test)
 
-    result = pd.concat([labels_tests, label_sepsis, labels_vitals], axis=1)
+    result_val = pd.concat([labels_tests_val, label_sepsis_val, labels_vitals], axis=1)
+    result_test = pd.concat([labels_tests_test, label_sepsis_test, labels_vitals], axis=1)
 
-    result.to_csv('Project_2/prediction.zip', float_format='%.3f', compression='zip')
+    print("Avg score for validation set:", get_score(y_val,result_val))
 
-make_submission(train_features, y_train, test_features)
+    result_val.to_csv('Project_2/prediction_val.csv', float_format='%.3f', compression='zip')
+    result_test.to_csv('Project_2/prediction.zip', float_format='%.3f', compression='zip')
+
+make_submission(train_features, y_train, val_features, y_val, test_features)
