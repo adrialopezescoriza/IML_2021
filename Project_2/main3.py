@@ -5,8 +5,10 @@ import torch.nn as nn
 import torch.optim as optim
 import sklearn.metrics as metrics
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression, LassoCV
-from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression, RidgeCV, RidgeClassifierCV, LogisticRegression
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.decomposition import PCA
+from sklearn import svm
 import matplotlib.pyplot as plt
 
 from score_submission import get_score
@@ -23,7 +25,7 @@ TESTS = ['LABEL_BaseExcess', 'LABEL_Fibrinogen', 'LABEL_AST', 'LABEL_Alkalinepho
          'LABEL_Lactate', 'LABEL_TroponinI', 'LABEL_SaO2',
          'LABEL_Bilirubin_direct', 'LABEL_EtCO2']
          
-# Load data
+# Loading data
 
 train_features = pd.read_csv('Project_2/train_features.csv')
 val_features = pd.read_csv('Project_2/val_features.csv')
@@ -37,7 +39,7 @@ y_val = val_labels
 # patient IDs
 pids = train_features['pid'].drop_duplicates().sort_values().reset_index(drop=True)
 
-# Deal with the Nan values in the data 
+# Data imputation
 def impute_mean(train_features, test_features):
     X_train = (train_features.groupby('pid').mean()).fillna(train_features.mean()).drop('Time', axis=1).sort_values(by='pid')
     X_test = (test_features.groupby('pid').mean()).fillna(test_features.mean()).drop('Time', axis=1).sort_values(by='pid')
@@ -134,7 +136,7 @@ class Classifier():
         return self.net(X)
 
 def subtask1(X_train, y_train, X_test):
-
+    '''
     X = torch.Tensor(X_train.values)
     y = torch.Tensor(y_train[TESTS].values)
     X_pred = torch.Tensor(X_test.values)
@@ -142,15 +144,52 @@ def subtask1(X_train, y_train, X_test):
     model.train(X, y)
     y_pred = model.predict(X_pred)
     return pd.DataFrame(y_pred.detach().numpy(), columns=TESTS, index=X_test.index)
+    '''
+    # Extract significant features
+    feature_map = PCA(n_components=12)
+    #feature_map.fit_transform(X_train.values)
+    y_pred = []
+    for test in TESTS:
+        y = y_train[test]
+
+        # Create linear regressor and train it
+        #model = RidgeClassifierCV(alphas=[1e-3, 1e-2, 1e-1, 1]).fit(X_train.values, y.values)
+        model = LogisticRegression(random_state=0).fit(X_train.values, y.values)
+        # Make predicitons 
+        #y_pred.append(1/(1+np.exp(model.decision_function(X_test.values))))
+        y_pred.append(model.predict_proba(X_test.values)[:,1])
+    '''    
+    #model = MultiOutputClassifier(svm.SVC(probability=True, C=10),n_jobs=10)
+    model = MultiOutputClassifier(RidgeClassifierCV(alphas=[1e-3, 1e-2, 1e-1, 1]))
+    model.fit(X_train.values, y_train[TESTS].values)
+    y_pred = model.decision_function(X_test.values)
+    y_probs = np.zeros((len(y_pred[0]),0))
+    
+    for array in y_pred:
+        # Return probability of class 1
+        y_probs = np.hstack((y_probs,array[:,1:2]))
+    '''
+    return pd.DataFrame(np.transpose(y_pred), columns=TESTS, index=X_test.index)
+    
 
 def subtask2(X_train, y_train, X_test):
     X = torch.Tensor(X_train.values)
     y = torch.Tensor([y_train['LABEL_Sepsis'].values]).transpose(0, 1)
     X_pred = torch.Tensor(X_test.values)
-    model = Classifier(35, 1)
-    model.train(X, y)
-    y_pred = model.predict(X_pred)
-    return pd.DataFrame(y_pred.detach().numpy(), columns=['LABEL_Sepsis'], index=X_test.index)
+    #model = Classifier(35, 1)
+    #model.train(X, y)
+    #y_pred = model.predict_proba(X_pred)
+    #return pd.DataFrame(y_pred.detach().numpy(), columns=['LABEL_Sepsis'], index=X_test.index)
+
+    # Extract significant features
+    #feature_map = PCA(n_components=12)
+    #feature_map.fit_transform(X_train.values)
+    #model = svm.SVC(probability=True, C=0.1)
+    train_labels = ['Age','EtCO2','Temp','RRate','Heartrate','ABPs']
+    model = LogisticRegression(random_state=0)
+    model.fit(X_train['Age','EtCO2','Temp','RRate','Heartrate','ABPs'].values,y_train['LABEL_Sepsis'].values)
+    y_pred = model.predict_proba(X_test['Age','EtCO2','Temp','RRate','Heartrate','ABPs'].values)[:,1:2]
+    return pd.DataFrame(y_pred, columns=['LABEL_Sepsis'], index=X_test.index)
 
 def subtask3(X_train, y_train, X_test):
     y_pred = []
@@ -159,7 +198,7 @@ def subtask3(X_train, y_train, X_test):
         y = y_train[vital]
 
         # Create linear regressor and train it
-        model  = LinearRegression().fit(X_train, y)
+        model  = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1]).fit(X_train, y)
         # model = LassoCV(random_state=42).fit(X_train, y)
 
         # Make predicitons 
@@ -184,14 +223,15 @@ def make_submission(train_features, y_train, val_features, y_val, test_features)
     X_val, _ = impute_mean(val_features, test_features)
     X_val, _ = standardize_data(X_val, X_test)
 
-    labels_vitals = subtask3(X_train, y_train, X_test)
+    labels_vitals_test = subtask3(X_train, y_train, X_test)
+    labels_vitals_val = subtask3(X_train, y_train, X_val)
 
-    result_val = pd.concat([labels_tests_val, label_sepsis_val, labels_vitals], axis=1)
-    result_test = pd.concat([labels_tests_test, label_sepsis_test, labels_vitals], axis=1)
+    result_val = pd.concat([labels_tests_val, label_sepsis_val, labels_vitals_val], axis=1)
+    result_test = pd.concat([labels_tests_test, label_sepsis_test, labels_vitals_test], axis=1)
 
     print("Avg score for validation set:", get_score(y_val,result_val))
 
-    result_val.to_csv('Project_2/prediction_val.csv', float_format='%.3f', compression='zip')
+    result_val.to_csv('Project_2/prediction_val.csv', float_format='%.3f')
     result_test.to_csv('Project_2/prediction.zip', float_format='%.3f', compression='zip')
 
 make_submission(train_features, y_train, val_features, y_val, test_features)
