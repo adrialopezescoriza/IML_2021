@@ -6,6 +6,7 @@
 from numpy.core.fromnumeric import mean
 from sklearn.metrics import f1_score
 from sklearn.utils import shuffle
+from sklearn.preprocessing import OneHotEncoder
 
 # Torch imports
 import torch.nn as nn
@@ -37,6 +38,27 @@ def code_dataframe(dataframe,test=False):
     
     coded_data = {'Sequence': converted_sequence, 'Active':dataframe['Active']}
     return pd.DataFrame(coded_data)
+
+def one_hot(data_train, data_test):
+    split_seq_train = np.empty((data_train.shape[0],4), dtype=str)
+    i=0
+    for sequence in data_train:
+        split_seq_train[i,:] = np.array(list(sequence))
+        i=i+1
+
+    split_seq_test = np.empty((data_test.shape[0],4), dtype=str)
+    i=0
+    for sequence in data_test:
+        split_seq_test[i,:] = np.array(list(sequence))
+        i=i+1
+
+    cat = list(sorted(np.unique(split_seq_train[:,0])))
+
+    ohc = OneHotEncoder(sparse=False, categories=[cat,cat,cat,cat])
+    oh_data_train = ohc.fit_transform(split_seq_train)
+    oh_data_test = ohc.transform(split_seq_test)
+
+    return oh_data_train, oh_data_test
 
 def f1_loss(y_true:torch.Tensor, y_pred:torch.Tensor, is_training=True) -> torch.Tensor:
     '''Calculate F1 score. Can work with gpu tensors
@@ -80,9 +102,18 @@ def f1_loss(y_true:torch.Tensor, y_pred:torch.Tensor, is_training=True) -> torch
 
 # Prediction
 def predict_test(model):
+    # Load datasets
+    df = pd.read_csv('Project_3/train.csv')
+    df_test = pd.read_csv('Project_3/test.csv')
+
+    X_train = df['Sequence']
+    X_test = df_test['Sequence']
+
+    X_train_hot, X_test_hot = one_hot(X_train, X_test)
+
     df_str_test = pd.read_csv('Project_3/test.csv')
     df_int_test = code_dataframe(df_str_test,test=True)
-    X_test = torch.from_numpy(np.vstack(df_int_test['Sequence'].values)).float()
+    X_test = torch.from_numpy(X_test_hot).float()
     y_predict_test = torch.round(model.predict(X_test))
 
     # Convert to csv
@@ -108,11 +139,12 @@ l8_out = 80
 l9_out = 60
 l10_out = 40
 n_epochs = 500
-lr = 1e-3
-wd = 0
+lr = 5e-4
+wd = 2e-3
 
-train_frac = 0.8
-only_test = False
+train_frac = 0.9
+b_size = 30
+only_test = True
 
 # Neural network
 # Define the architecture of my classifier network
@@ -123,12 +155,12 @@ class Net(nn.Module):
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(l1_out, l2_out, bias=True)
         self.fc3 = nn.Linear(l2_out, l3_out, bias=True)
-        self.fc4 = nn.Linear(l3_out, l4_out, bias=True)
-        self.fc5 = nn.Linear(l4_out, l5_out, bias=True)
-        self.fc6 = nn.Linear(l5_out, l6_out, bias=True)
-        self.fc7 = nn.Linear(l6_out, l7_out, bias=True)
-        self.fc8 = nn.Linear(l7_out, l8_out, bias=True)
-        self.fc9 = nn.Linear(l8_out, l9_out, bias=True)
+        #self.fc4 = nn.Linear(l3_out, l4_out, bias=True)
+        #self.fc5 = nn.Linear(l4_out, l5_out, bias=True)
+        #self.fc6 = nn.Linear(l5_out, l6_out, bias=True)
+        #self.fc7 = nn.Linear(l6_out, l7_out, bias=True)
+        #self.fc8 = nn.Linear(l7_out, l8_out, bias=True)
+        self.fc9 = nn.Linear(l3_out, l9_out, bias=True)
         self.fc10 = nn.Linear(l9_out, l10_out, bias=True)
         self.fc11 = nn.Linear(l10_out, size_output, bias=True)
         self.sig= nn.Sigmoid()
@@ -137,11 +169,11 @@ class Net(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.relu(self.fc3(x))
-        x = self.relu(self.fc4(x))
-        x = self.relu(self.fc5(x))
-        x = self.relu(self.fc6(x))
-        x = self.relu(self.fc7(x))
-        x = self.relu(self.fc8(x))
+        #x = self.relu(self.fc4(x))
+        #x = self.relu(self.fc5(x))
+        #x = self.relu(self.fc6(x))
+        #x = self.relu(self.fc7(x))
+        #x = self.relu(self.fc8(x))
         x = self.relu(self.fc9(x))
         x = self.relu(self.fc10(x))
         x = self.sig(self.fc11(x))
@@ -154,13 +186,13 @@ class Classifier():
         # Asign it the NN
         self.net = Net(size_input, size_output)
         # Since it's a binary classification problem, we use Binary cross entropy loss 
-        #self.criterion = nn.BCELoss()
-        self.criterion = f1_loss
+        self.criterion = nn.BCELoss()
+        #self.criterion = f1_loss
         # Use stochastic gradient descent for training
         self.optimizer = optim.SGD(self.net.parameters(), lr=lr, momentum=0.95, weight_decay=wd)
         self.plot_loss = plot_loss
     
-    def train(self, X, Y, X_cv, Y_cv, batch_size=50):
+    def train(self, X, Y, X_cv, Y_cv, batch_size=b_size):
         best_score_cv = 0
         epoch_losses=[]
         for epoch in range(n_epochs):  # loop over the dataset multiple times
@@ -204,9 +236,10 @@ class Classifier():
                     torch.save(self,'Project_3/best-model.pt')
                     best_score_cv = f1_score_cv
 
-                print('\nEpoch',epoch,'training loss: ', 1-np.mean(losses))#BCE_loss_train_dB,'[dB]')
-                print('Epoch',epoch,'validation loss: ', 1-loss_cv.item())#BCE_loss_cv_dB,'[dB]') 
+                print('\nEpoch',epoch,'training loss: ', np.mean(losses))#BCE_loss_train_dB,'[dB]')
+                print('Epoch',epoch,'validation loss: ', loss_cv.item())#BCE_loss_cv_dB,'[dB]') 
                 print('Epoch',epoch,'validation F1 Score: ', f1_score_cv) 
+                print('Best score: ',best_score_cv)
 
         if self.plot_loss:
             plt.plot(epoch_losses)
@@ -220,19 +253,23 @@ class Classifier():
 
 if (not only_test):
     # Load datasets
-    df_str = pd.read_csv('Project_3/train.csv')
-    df_int = code_dataframe(df_str)
+    df = pd.read_csv('Project_3/train.csv')
 
     # Split into validation and training set
-    df_shuffled = shuffle(df_int)
-    df_size = df_shuffled['Sequence'].size
+    df_shuffled = shuffle(df)
+    df_size = df_shuffled.size/2
     df_train = df_shuffled.iloc[:round(df_size*train_frac),:]
     df_cv    = df_shuffled.iloc[round(df_size*train_frac):,:]
 
+    X_train = df_train['Sequence']
+    X_test = df_cv['Sequence']
+
+    X_train_hot, X_test_hot = one_hot(X_train, X_test)
+
     # Classifier model and training
-    protein_Net = Classifier(4,1,plot_loss=False)
-    X,y = torch.from_numpy(np.vstack(df_train['Sequence'].values)).float(), torch.from_numpy(df_train['Active'].values).float()
-    X_cv,y_cv = torch.from_numpy(np.vstack(df_cv['Sequence'].values)).float(), torch.from_numpy(df_cv['Active'].values).float() 
+    protein_Net = Classifier(80,1,plot_loss=False)
+    X,y = torch.from_numpy(X_train_hot).float(), torch.from_numpy(df_train['Active'].values).float()
+    X_cv,y_cv = torch.from_numpy(X_test_hot).float(), torch.from_numpy(df_cv['Active'].values).float() 
     protein_Net.train(X,y,X_cv,y_cv)
 
 else:
