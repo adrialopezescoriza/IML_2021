@@ -1,2 +1,6 @@
 .DS_Store
+
 *.pyc
+
+# Large datasets
+Project_4/food.zip
