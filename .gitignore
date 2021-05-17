@@ -4,3 +4,7 @@
 
 # Large datasets
 Project_4/food.zip
+Project_4/food/*
+
+# Inference models
+*.pth
