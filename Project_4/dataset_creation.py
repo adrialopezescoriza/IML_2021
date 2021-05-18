@@ -29,10 +29,10 @@ for triplet in train_triplets:
         triplet = triplet[[0,2,1]]
 
     # Dataset creation [0:303] is X and [304] is label
-    np.savetxt(train_csv,np.hstack((np.hstack(foods_array[triplet]),correctness)))
+    array = np.hstack((np.hstack(foods_array[triplet]),correctness))
+    np.savetxt(train_csv,array[None],fmt='%i',delimiter=',')
     progressBar(idx,59515, 'train set')
     idx += 1
-print("Train set generation completed")
 
 #################### Create test set ##########################
 idx = 0
@@ -45,7 +45,7 @@ test_csv = open('Project_4/test.csv', 'ab')
 test_set = np.empty((0,303))
 for triplet in test_triplets:
     # Test set creation [0:303] is X
-    np.savetxt(test_csv,np.hstack(foods_array[triplet]))
+    np.hstack(foods_array[triplet])
+    np.savetxt(test_csv,array[None],fmt='%i',delimiter=',')
     progressBar(idx,59544, 'test set')
     idx += 1
-print("Test set generation completed")
