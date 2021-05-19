@@ -24,25 +24,20 @@ import matplotlib.pyplot as plt
 
 ################ Config params ##################
 # Network parameters
-l1_out = 500
-l2_out = 600
-l3_out = 700
-l3_out = 800
-l4_out = 700
-l5_out = 600
-l6_out = 500
-l7_out = 400
-l8_out = 200
-l9_out = 50
-l10_out = 5
-n_epochs = 500
+l1_out = 200
+l2_out = 90
+l3_out = 50
+l3_out = 40
+l4_out = 30
+l5_out = 20
+n_epochs = 600
 lr = 1e-3
 wd = 0
 
 # Training params
 train_frac = 0.9
 b_size = 50
-only_test = False
+only_test = True
 
 ################ Functions ##################
 # Prediction
@@ -55,7 +50,7 @@ def predict_test(model):
     y_np = y_predict_test.detach().numpy()
     #print(y_np)
     #y_df = pd.DataFrame(y_np)
-    np.savetxt("Project_4/results.csv",y_np,fmt='%i', delimiter="\n")
+    np.savetxt("Project_4/results.txt",y_np,fmt='%i', delimiter="\n")
 
 # Define network
 class Net(nn.Module):
@@ -67,12 +62,7 @@ class Net(nn.Module):
         self.fc3 = nn.Linear(l2_out, l3_out, bias=True)
         self.fc4 = nn.Linear(l3_out, l4_out, bias=True)
         self.fc5 = nn.Linear(l4_out, l5_out, bias=True)
-        self.fc6 = nn.Linear(l5_out, l6_out, bias=True)
-        self.fc7 = nn.Linear(l6_out, l7_out, bias=True)
-        self.fc8 = nn.Linear(l7_out, l8_out, bias=True)
-        self.fc9 = nn.Linear(l8_out, l9_out, bias=True)
-        self.fc10 = nn.Linear(l9_out, l10_out, bias=True)
-        self.fc11 = nn.Linear(l10_out, size_output, bias=True)
+        self.fc6 = nn.Linear(l5_out, size_output, bias=True)
         self.sig= nn.Sigmoid()
 
     def forward(self, x):
@@ -81,12 +71,7 @@ class Net(nn.Module):
         x = self.relu(self.fc3(x))
         x = self.relu(self.fc4(x))
         x = self.relu(self.fc5(x))
-        x = self.relu(self.fc6(x))
-        x = self.relu(self.fc7(x))
-        x = self.relu(self.fc8(x))
-        x = self.relu(self.fc9(x))
-        x = self.relu(self.fc10(x))
-        x = self.sig(self.fc11(x))
+        x = self.sig(self.fc6(x))
         return x
 # Define How the classifier is going to be trained
 class Classifier():
@@ -101,9 +86,10 @@ class Classifier():
         self.plot_loss = plot_loss
     
     def train(self, X, Y, X_cv, Y_cv, batch_size=b_size):
-        best_score_cv = 1
+        best_score_cv = 0
         best_epoch = 0
         epoch_losses=[]
+        cv_losses = []
         for epoch in range(n_epochs):  # loop over the dataset multiple times
 
             # X is a torch Variable
@@ -135,20 +121,26 @@ class Classifier():
                 outputs_cv = self.net.forward(X_cv)
                 loss_cv = self.criterion(torch.squeeze(outputs_cv),torch.squeeze(Y_cv))
 
+                count_corrects = torch.sum(torch.round(torch.squeeze(outputs_cv))==Y_cv).item()
+                accuracy_val = count_corrects/torch.numel(outputs_cv) 
+
+                cv_losses.append(loss_cv)
+
                 BCE_loss_train_dB = 10*np.log10(np.mean(losses))
                 BCE_loss_cv_dB    = 10*np.log10(loss_cv.item())
 
-                if (loss_cv.item() < best_score_cv):
+                if (accuracy_val > best_score_cv):
                     torch.save(self,'Project_4/best-model.pt')
-                    best_score_cv = loss_cv.item()
+                    best_score_cv = accuracy_val
                     best_epoch = epoch
 
                 print('\nEpoch',epoch,'training loss: ', np.mean(losses))#BCE_loss_train_dB,'[dB]')
                 print('Epoch',epoch,'validation loss: ', loss_cv.item())#BCE_loss_cv_dB,'[dB]') 
-                print('Best loss: ',best_score_cv, '; epoch:', best_epoch)
+                print('Epoch',epoch,'validation accuracy: ', accuracy_val)
+                print('Best accuracy: ',best_score_cv, '; epoch:', best_epoch)
 
         if self.plot_loss:
-            plt.plot(epoch_losses)
+            plt.plot(cv_losses)
             plt.show()
         
         print("Finished training")
@@ -176,7 +168,7 @@ if (not only_test):
 
     print("Dataset loaded...")
     # Classifier model and training
-    protein_Net = Classifier(303,1,plot_loss=False)
+    protein_Net = Classifier(303,1,plot_loss=True)
     protein_Net.train(X_train.float(),Y_train.float(),X_val.float(),Y_val.float())
 
 else:
