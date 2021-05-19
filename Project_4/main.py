@@ -42,10 +42,19 @@ only_test = True
 ################ Functions ##################
 # Prediction
 def predict_test(model):
+
+    image_type = np.loadtxt("Project_4/food/classes.txt",dtype='str')
+
     # Load datasets
     X_test = torch.from_numpy(np.genfromtxt('Project_4/test.csv',delimiter=',').astype('int'))
     y_predict_test = torch.round(model.predict(X_test.float()))
-
+    '''
+    for i in range(0,len(y_predict_test)):
+        image_A = image_type[torch.argmax(X_test[i,0:101])]
+        image_B = image_type[torch.argmax(X_test[i,101:202])]
+        image_C = image_type[torch.argmax(X_test[i,202:303])]
+        print(image_A,image_B,image_C,y_predict_test[i].item())
+    '''
     # Convert to csv
     y_np = y_predict_test.detach().numpy()
     #print(y_np)
