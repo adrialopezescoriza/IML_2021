@@ -24,20 +24,29 @@ import matplotlib.pyplot as plt
 
 ################ Config params ##################
 # Network parameters
-l1_out = 200
-l2_out = 90
+l1_out = 170
+l2_out = 100
 l3_out = 50
-l3_out = 40
-l4_out = 30
-l5_out = 20
-n_epochs = 600
-lr = 1e-3
-wd = 0
+l4_out = 20
+l5_out = 10
+l6_out = 8
+l7_out = 5
+l8_out = 3
+l9_out = 2
+n_epochs = 400
+lr = 1e-4
+wd = 1e-5
 
 # Training params
 train_frac = 0.9
-b_size = 50
-only_test = True
+b_size = 20
+only_test = False
+one_hot = False
+
+if(one_hot):
+    type = 'int'
+else:
+    type = 'float'
 
 ################ Functions ##################
 # Prediction
@@ -46,7 +55,7 @@ def predict_test(model):
     image_type = np.loadtxt("Project_4/food/classes.txt",dtype='str')
 
     # Load datasets
-    X_test = torch.from_numpy(np.genfromtxt('Project_4/test.csv',delimiter=',').astype('int'))
+    X_test = torch.from_numpy(np.genfromtxt('Project_4/test.csv',delimiter=',').astype(type))
     y_predict_test = torch.round(model.predict(X_test.float()))
     '''
     for i in range(0,len(y_predict_test)):
@@ -65,22 +74,36 @@ def predict_test(model):
 class Net(nn.Module):
     def __init__(self, size_input, size_output):
         super().__init__()
+        #self.fc0 = nn.Linear(size_input, l0_out, bias= True)
         self.fc1 = nn.Linear(size_input, l1_out, bias= True)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(l1_out, l2_out, bias=True)
         self.fc3 = nn.Linear(l2_out, l3_out, bias=True)
         self.fc4 = nn.Linear(l3_out, l4_out, bias=True)
-        self.fc5 = nn.Linear(l4_out, l5_out, bias=True)
-        self.fc6 = nn.Linear(l5_out, size_output, bias=True)
+        self.fc5 = nn.Linear(l4_out, size_output, bias=True)
+        '''
+        self.fc6 = nn.Linear(l5_out, l6_out, bias=True)
+        self.fc7 = nn.Linear(l6_out, l7_out, bias=True)
+        self.fc8 = nn.Linear(l7_out, l8_out, bias=True)
+        self.fc9 = nn.Linear(l8_out, l9_out, bias=True)
+        self.fc10 = nn.Linear(l9_out, size_output, bias=True)
+        '''
         self.sig= nn.Sigmoid()
 
     def forward(self, x):
+        #x = self.relu(self.fc0(x))
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.relu(self.fc3(x))
         x = self.relu(self.fc4(x))
-        x = self.relu(self.fc5(x))
-        x = self.sig(self.fc6(x))
+        x = self.sig(self.fc5(x))
+        '''
+        x = self.relu(self.fc6(x))
+        x = self.relu(self.fc7(x))
+        x = self.relu(self.fc8(x))
+        x = self.relu(self.fc9(x))
+        x = self.sig(self.fc10(x))
+        '''
         return x
 # Define How the classifier is going to be trained
 class Classifier():
@@ -162,18 +185,21 @@ class Classifier():
 ################ Code ##################
 if (not only_test):
     # Load datasets
-    dataset = torch.from_numpy(np.genfromtxt('Project_4/train.csv',delimiter=',').astype('int'))
+    dataset = torch.from_numpy(np.genfromtxt('Project_4/train.csv',delimiter=',').astype(type))
 
     # Split into validation and training set
     df_size = dataset.size(0)
-    df_train = dataset[0:int(df_size*(train_frac)),:]
-    df_val = dataset[0:int(df_size*(1-train_frac)),:]
+    df_train = dataset[:int(df_size*(train_frac)),:]
+    df_val = dataset[int(df_size*(train_frac)):,:]
 
     X_train = df_train[:,0:303]
     X_val = df_val[:,0:303]
 
     Y_train = df_train[:,303]
     Y_val = df_val[:,303]
+
+    print("Train size:",X_train.size())
+    print("Validation size:",X_val.size())
 
     print("Dataset loaded...")
     # Classifier model and training
