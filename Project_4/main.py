@@ -48,18 +48,14 @@ only_test = False
 # Prediction
 def predict_test(model):
     # Load datasets
-    df_test = pd.read_csv('Project_4/test.csv')
-    X_test = df_test['Food_class']
-
-    df_str_test = pd.read_csv('Project_3/test.csv')
-    X_test = torch.from_numpy(X_test).float()
-    y_predict_test = torch.round(model.predict(X_test))
+    X_test = torch.from_numpy(np.genfromtxt('Project_4/test.csv',delimiter=',').astype('int'))
+    y_predict_test = torch.round(model.predict(X_test.float()))
 
     # Convert to csv
     y_np = y_predict_test.detach().numpy()
     #print(y_np)
     #y_df = pd.DataFrame(y_np)
-    np.savetxt("Project_3/results.csv",y_np,fmt='%i', delimiter="\n")
+    np.savetxt("Project_4/results.csv",y_np,fmt='%i', delimiter="\n")
 
 # Define network
 class Net(nn.Module):
@@ -169,8 +165,8 @@ if (not only_test):
 
     # Split into validation and training set
     df_size = dataset.size(0)
-    df_train = dataset[0:int(df_size*(1-train_frac)),:]
-    df_val = dataset[0:int(df_size*(train_frac)),:]
+    df_train = dataset[0:int(df_size*(train_frac)),:]
+    df_val = dataset[0:int(df_size*(1-train_frac)),:]
 
     X_train = df_train[:,0:303]
     X_val = df_val[:,0:303]

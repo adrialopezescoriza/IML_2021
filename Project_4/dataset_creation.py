@@ -33,7 +33,7 @@ for triplet in train_triplets:
     np.savetxt(train_csv,array[None],fmt='%i',delimiter=',')
     progressBar(idx,59515, 'train set')
     idx += 1
-
+train_csv.close()
 #################### Create test set ##########################
 idx = 0
 # Load
@@ -45,7 +45,8 @@ test_csv = open('Project_4/test.csv', 'ab')
 test_set = np.empty((0,303))
 for triplet in test_triplets:
     # Test set creation [0:303] is X
-    np.hstack(foods_array[triplet])
+    array = np.hstack(foods_array[triplet])
     np.savetxt(test_csv,array[None],fmt='%i',delimiter=',')
     progressBar(idx,59544, 'test set')
     idx += 1
+test_csv.close()
